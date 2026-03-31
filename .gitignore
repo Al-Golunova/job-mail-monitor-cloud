@@ -205,3 +205,25 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Secrets / credentials
+secrets/
+credentials/
+google_service_account.json
+service_account.json
+token.json
+*.pem
+*.key
+
+# Local settings
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
