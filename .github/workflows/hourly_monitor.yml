@@ -1,0 +1,45 @@
+name: Hourly Mail Monitor
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+      timezone: 'Europe/Berlin'
+  workflow_dispatch:
+
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run monitor
+        env:
+          GMX_EMAIL: ${{ secrets.GMX_EMAIL }}
+          GMX_PASSWORD: ${{ secrets.GMX_PASSWORD }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT }}
+          MAILBOX: ${{ secrets.MAILBOX }}
+          SCAN_DAYS: ${{ secrets.SCAN_DAYS }}
+          MAX_MESSAGES_PER_RUN: ${{ secrets.MAX_MESSAGES_PER_RUN }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          JOBS_WORKSHEET: ${{ secrets.JOBS_WORKSHEET }}
+          EVENTS_WORKSHEET: ${{ secrets.EVENTS_WORKSHEET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          TELEGRAM_ENABLED: ${{ secrets.TELEGRAM_ENABLED }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NOTIFY_ON: ${{ secrets.NOTIFY_ON }}
+          DRY_RUN: ${{ secrets.DRY_RUN }}
+        run: python -m app.main
