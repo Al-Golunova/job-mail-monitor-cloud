@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import imaplib
+import time
 from dataclasses import dataclass
 from datetime import timezone
 
@@ -49,6 +51,45 @@ def build_telegram_message(mail: MailItem, category: str, company: str, title: s
     return "\n".join(lines)
 
 
+def fetch_messages_with_retries(settings) -> list[MailItem]:
+    """
+    Try to log in to GMX several times.
+    If GMX temporarily rejects authentication, do not fail the whole workflow.
+    """
+    delays = [20, 60, 120]
+    attempts = len(delays)
+
+    for attempt in range(attempts):
+        try:
+            with GMXImapClient(settings) as imap_client:
+                return imap_client.fetch_recent_messages(
+                    settings.scan_days,
+                    settings.max_messages_per_run,
+                )
+
+        except imaplib.IMAP4.error as exc:
+            error_text = str(exc).lower()
+
+            # If this is not the known auth problem, raise normally
+            if "authentication failed" not in error_text:
+                raise
+
+            wait_seconds = delays[attempt]
+
+            if attempt < attempts - 1:
+                print(
+                    f"GMX auth failed on attempt {attempt + 1}/{attempts}. "
+                    f"Retrying in {wait_seconds} seconds..."
+                )
+                time.sleep(wait_seconds)
+            else:
+                print(
+                    f"GMX auth failed on attempt {attempt + 1}/{attempts}. "
+                    f"Skipping this run."
+                )
+                return []
+
+
 def process_once(test_telegram: bool = False) -> RunStats:
     load_dotenv()
     settings = load_settings()
@@ -64,10 +105,12 @@ def process_once(test_telegram: bool = False) -> RunStats:
     jobs, header_map = sheets.get_jobs()
     stats = RunStats()
 
-    with GMXImapClient(settings) as imap_client:
-        messages = imap_client.fetch_recent_messages(settings.scan_days, settings.max_messages_per_run)
-
+    messages = fetch_messages_with_retries(settings)
     stats.fetched = len(messages)
+
+    if not messages:
+        print("No messages fetched in this run.")
+        return stats
 
     for mail in messages:
         if mail.message_id in processed_ids or mail.uid in processed_ids:
@@ -114,11 +157,16 @@ def process_once(test_telegram: bool = False) -> RunStats:
                     note=note,
                     telegram_sent=telegram_sent,
                 )
+
         else:
             stats.unmatched += 1
             action = "unmatched_logged"
+
             if classification.category in settings.notify_on and settings.telegram_enabled:
-                message = build_telegram_message(mail, classification.category, "", "") + "\n⚠️ No row matched in Google Sheets"
+                message = (
+                    build_telegram_message(mail, classification.category, "", "")
+                    + "\n⚠️ No row matched in Google Sheets"
+                )
                 if not settings.dry_run:
                     notifier.send(message)
                 telegram_sent = "Yes"
@@ -144,8 +192,9 @@ def process_once(test_telegram: bool = False) -> RunStats:
         processed_ids.add(mail.uid)
 
     print(
-        f"Fetched={stats.fetched}, skipped={stats.skipped_as_processed}, matched={stats.matched}, "
-        f"unmatched={stats.unmatched}, telegram={stats.telegram_sent}"
+        f"Fetched={stats.fetched}, skipped={stats.skipped_as_processed}, "
+        f"matched={stats.matched}, unmatched={stats.unmatched}, "
+        f"telegram={stats.telegram_sent}"
     )
     return stats
 
