@@ -17,13 +17,13 @@ from .utils import clip
 
 
 STATUS_MAP = {
-    "offer": "Offer",
-    "interview": "Interview",
-    "documents": "Documents requested",
-    "rejection": "Rejected",
-    "reply": "Reply received",
-    "auto_reply": "Auto reply",
-    "other": "Email received",
+    "offer": "OFFER",
+    "interview": "INTERVIEW",
+    "documents": "ACTION_REQUIRED",
+    "rejection": "REJECTED",
+    "reply": "WAITING",
+    "auto_reply": "WAITING",
+    "other": "WAITING",
 }
 
 
@@ -129,7 +129,7 @@ def process_once(test_telegram: bool = False) -> RunStats:
         action = "logged_only"
         telegram_sent = "No"
         email_date = mail.date.astimezone(timezone.utc).isoformat()
-        status = STATUS_MAP.get(classification.category, "Email received")
+        status = STATUS_MAP.get(classification.category, "WAITING")
 
         if match:
             if classification.category in settings.notify_on and settings.telegram_enabled:
